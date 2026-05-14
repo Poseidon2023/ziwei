@@ -578,11 +578,13 @@ if submit:
         st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
         
         # 渲染中宫关键数据（放在命盘上方作为概览，或者你可以移入命盘中心）
+             # --- 修正后的渲染中宫关键数据 ---
         base_cols = st.columns(4)
-        base_cols.metric("五行局", result.get("五行局", "N/A"))
-        base_cols.metric("阴阳性别", result.get("阴阳性别", "N/A"))
-        base_cols.metric("命主", result.get("命主", "N/A"))
-        base_cols.metric("身主", result.get("身主", "N/A"))
+        # 分别对第 0, 1, 2, 3 个列对象调用 metric
+        base_cols[0].metric("五行局", result.get("五行局", "N/A"))
+        base_cols[1].metric("阴阳性别", result.get("阴阳性别", "N/A"))
+        base_cols[2].metric("命主", result.get("命主", "N/A"))
+        base_cols[3].metric("身主", result.get("身主", "N/A"))
 
         # --- 核心：12宫方阵布局 ---
         # 定义 4x3 的地支坐标矩阵
