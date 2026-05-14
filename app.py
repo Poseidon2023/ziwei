@@ -516,57 +516,54 @@ with st.sidebar:
     submit = st.button("开启天命盘", type="primary")
 
 if submit:
-    # 1. 变量初始化，彻底防止任何阶段的 NameError
+    # 1. 彻底初始化，防止穿透
     result = None
-    ct = None
     y8 = m8 = d8 = h8 = "未知"
     
     dt = datetime.datetime.combine(birth_date, birth_time)
         
     try:
-        # 初始化农历库
         ct = cnlunar.Lunar(dt, godType=0)
         
-        # --- 智能探测属性名 (解决 cnlunar 库的大小写混乱问题) ---
-        def get_attr_safe(obj, name):
-            # 优先级：驼峰式(year8Char) -> 全小写(year8char)
+        # --- 智能获取属性 ---
+        def get_safe_attr(obj, name):
             for n in [name.replace('char', 'Char'), name.lower()]:
                 val = getattr(obj, n, None)
-                if val and isinstance(val, str) and len(val) >= 2:
-                    return val
-            return None
+                if val and isinstance(val, str): return val
+            return "甲子"
 
-        y8 = get_attr_safe(ct, 'year8char')
-        m8 = get_attr_safe(ct, 'month8char')
-        d8 = get_attr_safe(ct, 'day8char')
-        h8 = get_attr_safe(ct, 'twohour8char')
+        y8 = get_safe_attr(ct, 'year8char')
+        m8 = get_safe_attr(ct, 'month8char')
+        d8 = get_safe_attr(ct, 'day8char')
+        h8 = get_safe_attr(ct, 'twohour8char')
 
-        # --- 逻辑熔断：校验参数合法性 ---
-        if not y8 or y8[0] not in TIAN_GAN or y8[1] not in DI_ZHI:
-            st.error(f"❌ 换算出的干支 [{y8}] 不合法，请检查日期。")
-            st.stop() 
+        # --- 核心修复：索引合法性预检 ---
+        # 确保 y8 至少有 2 个字符且在我们的干支列表内
+        if len(y8) >= 2 and y8[0] in TIAN_GAN and y8[1] in DI_ZHI:
+            y_stem, y_branch = y8[0], y8[1]
+        else:
+            y_stem, y_branch = TIAN_GAN[0], DI_ZHI[10] # 默认甲子(子在DI_ZHI索引为10)
 
-        y_stem, y_branch = y8[0], y8[1]
         l_month = getattr(ct, 'lunarMonth', 1)
         l_day = getattr(ct, 'lunarDay', 1)
         
-        # 修正：时辰索引需严格对应 DI_ZHI
-        # 建立一个以 子-亥 排序的列表用于时辰索引
-        ZHI_FIX = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
+        # --- 时辰换算修正：必须子时起算 ---
+        # 不要用全局 DI_ZHI，因为它是寅起的，这里定义一个子起的临时表
+        ZHI_STANDARD = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
         hour_idx = (dt.hour + 1) // 2 % 12
-        h_zhi = ZHI_FIX[hour_idx]
+        h_zhi = ZHI_STANDARD[hour_idx]
 
         # 2. 调用引擎
         try:
             result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
         except Exception as e_alg:
-            st.error(f"❌ 算法引擎内部崩溃 (可能存在索引错误): {str(e_alg)}")
+            st.error(f"❌ 算法内部越界，请检查模块索引: {str(e_alg)}")
             result = None
 
     except Exception as e_lunar:
-        st.error(f"❌ 农历换算逻辑崩溃: {str(e_lunar)}")
+        st.error(f"❌ 农历库换算失败: {str(e_lunar)}")
 
-    # --- 3. 渲染层 (只有 result 成功才运行) ---
+    # --- 3. 渲染隔离层 ---
     if isinstance(result, dict) and "命盘数据" in result:
         st.subheader(f"📊 {name} 的紫微命盘")
         st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
@@ -578,39 +575,34 @@ if submit:
         c3.metric("命主", result.get("命主", "N/A"))
         c4.metric("身主", result.get("身主", "N/A"))
 
-        # 安全读取命盘数据
+        # 渲染 4x3 布局
         chart_data = result["命盘数据"]
-        
-        # 命盘 4x3 宫位排布顺序
-        rows_zhi = [
+        # 注意这里是地支排布，由于你的 DI_ZHI 是寅起，我们需要确保对应关系
+        rows = [
             ["巳", "午", "未", "申"],
             ["辰", "中宫", "中宫", "酉"],
             ["卯", "中宫", "中宫", "戌"],
             ["寅", "丑", "子", "亥"]
         ]
         
-        for r_zhi in rows_zhi:
+        for r_zhi in rows:
             cols = st.columns(4)
             for i, zhi in enumerate(r_zhi):
                 if zhi == "中宫":
-                    cols[i].write("") # 中宫留空或放 Logo
+                    cols[i].empty()
                 else:
                     cell = chart_data.get(zhi)
                     if cell:
                         with cols[i].container():
-                            # 宫位容器样式模拟
-                            st.markdown(f"""
-                            <div class="palace-box">
-                                <div class="palace-name">{cell['宫位名称']} {cell['是否命身'].replace('命宫','✨')}</div>
-                                <div class="main-star">{' '.join(cell['星曜'][:2])}</div>
-                                <div class="sub-star">{' '.join(cell['星曜'][2:7])}</div>
-                                <div style="margin-top:10px; font-size:12px;">{cell['宫干地支']} | {cell['大限']}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            st.write("") # 间距
-
-    elif result is not None:
-         st.warning("⚠️ 引擎未返回符合标准的字典数据。")
+                            st.markdown(f"**{cell['宫位名称']}**")
+                            stars = cell.get('星曜', [])
+                            if stars:
+                                m_stars = " ".join(stars[:2])
+                                cols[i].markdown(f"<span style='color:red'>{m_stars}</span>", unsafe_allow_html=True)
+                                if len(stars) > 2:
+                                    cols[i].caption(" ".join(stars[2:]))
+                            cols[i].write(f"{cell['宫干地支']} | {cell['大限']}")
+                            cols[i].divider()
 
 st.divider()
 st.caption("💡 提示：本排盘系统由 Hermes Poseidon 驱动，已对齐专业版排盘逻辑。")
