@@ -513,51 +513,84 @@ with st.sidebar:
     submit = st.button("开启天命盘", type="primary")
 
 if submit:
-      
     # 1. 农历换算
     dt = datetime.datetime.combine(birth_date, birth_time)
+        
     try:
         ct = cnlunar.Lunar(dt, godType=0)
-        
-        # --- 兼容性核心修复：自动探测获取年干支的方法 ---
+            
+            # --- 兼容性核心修复：自动探测获取年干支的方法 ---
         if hasattr(ct, 'year8char'):
-            # 如果是属性 (字符串)
             y_8char = ct.year8char
         elif hasattr(ct, 'get_year8char'):
-            # 如果是方法
             y_8char = ct.get_year8char()
         else:
-            # 极端兜底：直接从农历年干支属性读取
             y_8char = ct.year8Char 
-            
+                
         y_stem, y_branch = y_8char[0], y_8char[1]
-        # ------------------------------------------
-        
+            
         l_month = ct.lunarMonth
         l_day = ct.lunarDay
-        
-        # 2. 时辰换算
+            
+         # 2. 时辰换算
         hour_idx = (dt.hour + 1) // 2 % 12
         h_zhi = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"][hour_idx]
-        
-        # 3. 调用核心引擎
+            
+            # 3. 调用核心引擎
         result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
-        
-        # ... 后续渲染代码 (st.subheader 等) 保持不变 ...
-        
+            
+            # --- 渲染界面 (全部包裹在 try 内部) ---
         if isinstance(result, str):
             st.error(result)
         else:
-            # --- 渲染中宫档案 ---
             st.subheader(f"📊 {name} 的紫微命盘")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("五行局", result["五行局"])
-            col2.metric("阴阳性别", result["阴阳性别"])
-            col3.metric("命主", result["命主"])
-            col4.metric("身主", result["身主"])
-        except Exception as e:  # <--- 必须有这一行，且与 try 垂直对齐
-            st.error(f"排盘发生错误: {str(e)}")
+                
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("五行局", result["五行局"])
+            c2.metric("阴阳性别", result["阴阳性别"])
+            c3.metric("命主", result["命主"])
+            c4.metric("身主", result["身主"])
+                
+            st.info(f"**生辰八字：** {ct.year8char}年 {ct.month8char}月 {ct.day8char}日 {ct.twohour8char}时")
+
+                # 渲染 4x3 命盘
+            rows = [
+                ["巳", "午", "未", "申"],
+                ["辰", "中宫", "中宫", "酉"],
+                ["卯", "中宫", "中宫", "戌"],
+                ["寅", "丑", "子", "亥"]
+            ]
+                
+            chart_data = result["命盘数据"]
+                
+            for r in rows:
+                cols = st.columns(4)
+                for i, zhi in enumerate(r):
+                    if zhi == "中宫":
+                        cols[i].write("") 
+                    else:
+                        cell = chart_data[zhi]
+                        with cols[i].container():
+                                # 宫位名称加高亮
+                            title = f"**{cell['宫位名称']}**"
+                            if "命宫" in cell['是否命身']: title += " ✨"
+                            if "身宫" in cell['是否命身']: title += " 👤"
+                                
+                            cols[i].markdown(title)
+                                # 展示星曜，前两颗主星红色加粗
+                            stars = cell['星曜']
+                            if stars:
+                                main_stars = " ".join(stars[:2])
+                                sub_stars = " ".join(stars[2:])
+                                cols[i].markdown(f"<span style='color:red;font-weight:bold'>{main_stars}</span>", unsafe_allow_html=True)
+                                if sub_stars:
+                                    cols[i].caption(sub_stars)
+                                
+                            cols[i].write(f"{cell['宫干地支']} {cell['大限']}")
+                            cols[i].divider()
+
+    except Exception as e:
+        st.error(f"排盘发生错误，请检查输入: {str(e)}")
         st.info(f"**生辰八字：** {ct.year8char}年 {ct.month8char}月 {ct.day8char}日 {ct.twohour8char}时")
 
         # --- 渲染 4x3 命盘 (这里使用 Streamlit Columns 模拟) ---
