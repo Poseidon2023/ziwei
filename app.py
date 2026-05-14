@@ -7,6 +7,8 @@ import datetime
 
 TIAN_GAN = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
 DI_ZHI = ["寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥", "子", "丑"]
+# 必须添加这个，用于时辰的绝对索引（子=0）
+ZHI_HOUR = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
 
 # [此处粘贴你的 14 个模块函数：get_all_palace_stems, get_ming_shen_palace, get_wuxing_bureau 等]
 # [以及核心主控函数 build_ziwei_chart]
@@ -47,6 +49,7 @@ def get_ming_shen_palace(lunar_month, hour_zhi_str):
 
     # 命宫索引逻辑: (12 + 月份 - 时辰) % 12
     ming_idx = (12 + lunar_month - h) % 12
+    
 
     # 身宫索引逻辑: (月份 + 时辰 - 2) % 12
     shen_idx = (lunar_month + h - 2) % 12
@@ -84,7 +87,7 @@ def get_wuxing_bureau(ming_stem, ming_branch):
     """
     try:
         # 天干配对值: 甲乙(0), 丙丁(1), 戊己(2), 庚辛(3), 壬癸(4)
-        s = (TIAN_GAN.index(ming_stem) - 1) // 2  
+        s = (TIAN_GAN.index(ming_stem)) // 2  
         
         # 地支配对值: 必须以子丑为起点！子丑(0), 寅卯(1), 辰巳(2)
         # 这里单独定义一个以"子"开头的数组，防止和全局的寅宫起点冲突
@@ -386,6 +389,10 @@ def get_high_freq_secondary_stars(lunar_month, lunar_day, year_branch_str, mh_st
     """
     模块14：高频乙级辅星（刑姚、孤寡、龙凤、台座、恩贵）
     """
+    zuo_idx = next((i for i, s in enumerate(mh_stars) if "左辅" in s), 0)
+    you_idx = next((i for i, s in enumerate(mh_stars) if "右弼" in s), 0)
+    chang_idx = next((i for i, s in enumerate(mh_stars) if "文昌" in s), 0)
+    qu_idx = next((i for i, s in enumerate(mh_stars) if "文曲" in s), 0)
     try:
         yb_idx = DI_ZHI.index(year_branch_str) 
         z_idx = (yb_idx + 2) % 12 # 映射为子=0起算的索引
