@@ -592,7 +592,43 @@ if submit:
         elif submit and result is None:
             st.info("⌛ 正在等待计算结果或计算未触发...")
 
-        st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
+        if submit:
+            # 1. 预先初始化所有可能用到的变量，防止 NameError
+            y8 = m8 = d8 = h8 = "未知"
+            result = None
+            ct = None
+    
+            dt = datetime.datetime.combine(birth_date, birth_time)
+            
+            try:
+                ct = cnlunar.Lunar(dt, godType=0)
+                
+                # 兼容性提取八字数据
+                if hasattr(ct, 'year8char'):
+                    y8, m8, d8, h8 = ct.year8char, ct.month8char, ct.day8char, ct.twohour8char
+                else:
+                    y8, m8, d8, h8 = ct.get_year8char(), ct.get_month8char(), ct.get_day8char(), ct.get_twohour8char()
+                
+                # 提取排盘参数
+                y_stem, y_branch = y8[0], y8[1]
+                l_month = ct.lunarMonth
+                l_day = ct.lunarDay
+                hour_idx = (dt.hour + 1) // 2 % 12
+                h_zhi = DI_ZHI[hour_idx] # 确保你定义的 DI_ZHI 包含子到亥
+    
+                # 2. 调用核心引擎
+                result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
+    
+            except Exception as e:
+                st.error(f"❌ 数据换算或引擎报错: {str(e)}")
+
+        # 3. 渲染界面 (只有当 result 有内容时才执行)
+        if result:
+            st.subheader(f"📊 {name} 的紫微命盘")
+            st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
+            
+            # --- 后面接 col1.metric 和 4x3 布局代码 ---
+            # 注意：确保下面的代码中使用的是 result.get("命盘数据", {})
 
         # --- 渲染 4x3 命盘 (这里使用 Streamlit Columns 模拟) ---
         # 第一排：巳 午 未 申
