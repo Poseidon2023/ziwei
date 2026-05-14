@@ -513,50 +513,60 @@ with st.sidebar:
     submit = st.button("开启天命盘", type="primary")
 
 if submit:
-        # 1. 初始化变量
+        # 1. 预初始化变量，防止 NameError
         result = None
-        ct = None
+        y8 = m8 = d8 = h8 = "未知"
         
-        # 2. 农历换算
         dt = datetime.datetime.combine(birth_date, birth_time)
         
         try:
             ct = cnlunar.Lunar(dt, godType=0)
             
-            # 兼容性获取年干支
-            y_8char = getattr(ct, 'year8char', None) or ct.get_year8char()
-            y_stem, y_branch = y_8char[0], y_8char[1]
+            # --- 终极兼容性提取：自动探测 cnlunar 的属性 ---
+            # 方案 A: 尝试常见的字符串属性名
+            if hasattr(ct, 'year8char'):
+                y8, m8, d8, h8 = ct.year8char, ct.month8char, ct.day8char, ct.twohour8char
+            # 方案 B: 尝试大小写变体
+            elif hasattr(ct, 'year8Char'):
+                y8, m8, d8, h8 = ct.year8Char, ct.month8Char, ct.day8Char, ct.twohour8Char
+            # 方案 C: 尝试方法名
+            elif hasattr(ct, 'get_year8char'):
+                y8, m8, d8, h8 = ct.get_year8char(), ct.get_month8char(), ct.get_day8char(), ct.get_twohour8char()
+            else:
+                # 方案 D: 实在找不到，强行从 ct 字典里取值 (最后底牌)
+                st.warning("⚠️ 库版本异常，尝试强制提取数据...")
+                y8 = str(getattr(ct, 'year8char', '甲子'))
+
+            # 2. 提取干支并调用引擎
+            # 确保 y8 是字符串且长度足够
+            y_stem, y_branch = y8[0], y8[1]
             l_month = ct.lunarMonth
             l_day = ct.lunarDay
-            
-            # 时辰换算
             hour_idx = (dt.hour + 1) // 2 % 12
-            h_zhi = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"][hour_idx]
-            
-            # 3. 调用核心引擎
-            # 增加一个 try 专门包裹引擎，防止它返回 None 导致主程序崩掉
-            try:
-                result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
-            except Exception as engine_err:
-                st.error(f"❌ 算法引擎内部错误: {str(engine_err)}")
+            h_zhi = DI_ZHI[hour_idx]
 
-        except Exception as lunar_err:
-            st.error(f"❌ 农历换算失败: {str(lunar_err)}")
+            result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
 
-        # 4. 渲染界面：必须满足 result 不为空且不是错误字符串
-        if result and isinstance(result, dict):
+        except Exception as e:
+            st.error(f"❌ 换算环节崩溃: {str(e)}")
+            # 调试信息：打印出 ct 对象所有可用的属性，帮你定位问题
+            if 'ct' in locals():
+                st.write("调试信息 (可用属性):", [attr for attr in dir(ct) if '8' in attr])
+
+        # 3. 渲染界面 (增加双重保险判断)
+        if result and isinstance(result, dict) and "命盘数据" in result:
             st.subheader(f"📊 {name} 的紫微命盘")
+            st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
             
-            # 渲染中宫基本信息
+            # 渲染中宫
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("五行局", result.get("五行局", "N/A"))
             c2.metric("阴阳性别", result.get("阴阳性别", "N/A"))
             c3.metric("命主", result.get("命主", "N/A"))
             c4.metric("身主", result.get("身主", "N/A"))
 
-            # 获取命盘数据字典，若无则设为空字典防止再次 TypeError
-            chart_data = result.get("命盘数据", {})
-            
+            # 渲染 4x3 布局
+            chart_data = result["命盘数据"]
             rows = [
                 ["巳", "午", "未", "申"],
                 ["辰", "中宫", "中宫", "酉"],
@@ -579,7 +589,6 @@ if submit:
                                 
                                 stars = cell.get('星曜', [])
                                 if stars:
-                                    # 主星变红，其余变淡
                                     m_stars = " ".join(stars[:2])
                                     s_stars = " ".join(stars[2:])
                                     cols[i].markdown(f"<span style='color:red;font-weight:bold'>{m_stars}</span>", unsafe_allow_html=True)
@@ -587,10 +596,8 @@ if submit:
                                 
                                 cols[i].write(f"{cell.get('宫干地支','')} {cell.get('大限','')}")
                                 cols[i].divider()
-        elif result is not None and isinstance(result, str):
-            st.warning(f"⚠️ 引擎返回提示: {result}")
-        elif submit and result is None:
-            st.info("⌛ 正在等待计算结果或计算未触发...")
+        elif result is not None:
+            st.warning(f"⚠️ 结果格式异常: {str(result)}")
 
         if submit:
             # 1. 预先初始化所有可能用到的变量，防止 NameError
