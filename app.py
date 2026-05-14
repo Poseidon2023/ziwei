@@ -572,8 +572,6 @@ if submit:
 
     # --- 3. 渲染隔离层 ---
     if isinstance(result, dict) and "命盘数据" in result:
-        # --- 3. 渲染隔离层 ---
-    if isinstance(result, dict) and "命盘数据" in result:
         st.subheader(f"📊 {name} 的紫微命盘")
         
         # 顶部基础信息栏
