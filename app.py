@@ -519,9 +519,37 @@ if submit:
     
     # 2. 提取参数
     # 逻辑：cnlunar 的 year8char 返回的是 '庚午'，我们需要拆分
-   
-    y_8char = ct.get_year8char()
-    y_stem, y_branch = ct.year8char[0], ct.year8char[1]
+    if submit:
+    # 1. 农历换算
+    dt = datetime.datetime.combine(birth_date, birth_time)
+    try:
+        ct = cnlunar.Lunar(dt, godType=0)
+        
+        # --- 兼容性核心修复：自动探测获取年干支的方法 ---
+        if hasattr(ct, 'year8char'):
+            # 如果是属性 (字符串)
+            y_8char = ct.year8char
+        elif hasattr(ct, 'get_year8char'):
+            # 如果是方法
+            y_8char = ct.get_year8char()
+        else:
+            # 极端兜底：直接从农历年干支属性读取
+            y_8char = ct.year8Char 
+            
+        y_stem, y_branch = y_8char[0], y_8char[1]
+        # ------------------------------------------
+        
+        l_month = ct.lunarMonth
+        l_day = ct.lunarDay
+        
+        # 2. 时辰换算
+        hour_idx = (dt.hour + 1) // 2 % 12
+        h_zhi = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"][hour_idx]
+        
+        # 3. 调用核心引擎
+        result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
+        
+        # ... 后续渲染代码 (st.subheader 等) 保持不变 ...
     l_month = ct.lunarMonth
     l_day = ct.lunarDay
     # 将时间换算为地支
