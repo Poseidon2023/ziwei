@@ -519,6 +519,8 @@ if submit:
     
     # 2. 提取参数
     # 逻辑：cnlunar 的 year8char 返回的是 '庚午'，我们需要拆分
+   
+    y_8char = ct.get_year8char()
     y_stem, y_branch = ct.year8char[0], ct.year8char[1]
     l_month = ct.lunarMonth
     l_day = ct.lunarDay
