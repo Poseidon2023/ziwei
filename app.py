@@ -513,7 +513,7 @@ with st.sidebar:
     submit = st.button("开启天命盘", type="primary")
 
 if submit:
-        # 1. 预初始化变量，防止 NameError
+        # 1. 变量初始化 (增加默认值防止 NameError)
         result = None
         y8 = m8 = d8 = h8 = "未知"
         
@@ -522,30 +522,34 @@ if submit:
         try:
             ct = cnlunar.Lunar(dt, godType=0)
             
-            # --- 根据调试信息精准匹配属性名 (注意大写 C) ---
-            # 优先使用属性，因为你的调试信息显示这些属性是存在的
-            y8 = ct.year8Char
-            m8 = ct.month8Char
-            d8 = ct.day8Char
-            h8 = ct.twohour8Char
+            # --- 严格提取属性 ---
+            # 根据你的调试信息，使用大写 C 的属性名
+            y8 = getattr(ct, 'year8Char', "甲子")
+            m8 = getattr(ct, 'month8Char', "未知")
+            d8 = getattr(ct, 'day8Char', "未知")
+            h8 = getattr(ct, 'twohour8Char', "未知")
 
-            # 2. 提取干支并调用引擎
-            # 确保提取的是年柱的干和支
-            y_stem, y_branch = y8[0], y8[1]
-            l_month = ct.lunarMonth
-            l_day = ct.lunarDay
+            # --- 关键修复：防止 list index out of range ---
+            # 如果 y8 长度不足 2（比如是空字符串或"未知"），给予默认值
+            if len(y8) >= 2:
+                y_stem, y_branch = y8[0], y8[1]
+            else:
+                y_stem, y_branch = "甲", "子" # 极端情况下的兜底
+                
+            l_month = getattr(ct, 'lunarMonth', 1)
+            l_day = getattr(ct, 'lunarDay', 1)
             
             # 时辰换算
             hour_idx = (dt.hour + 1) // 2 % 12
             h_zhi = DI_ZHI[hour_idx]
 
-            # 调用你的核心引擎
+            # 2. 调用核心引擎
             result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
 
         except Exception as e:
-            st.error(f"❌ 换算环节崩溃: {str(e)}")
+            st.error(f"❌ 换算环节报错: {str(e)}")
 
-        # 3. 渲染界面
+        # 3. 渲染界面 (使用 result 存在性判断)
         if result and isinstance(result, dict) and "命盘数据" in result:
             st.subheader(f"📊 {name} 的紫微命盘")
             st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
@@ -575,10 +579,12 @@ if submit:
                         cell = chart_data.get(zhi)
                         if cell:
                             with cols[i].container():
+                                # 宫位标题
                                 t = f"**{cell['宫位名称']}**"
                                 if "命宫" in cell.get('是否命身',''): t += " ✨"
                                 cols[i].markdown(t)
                                 
+                                # 星曜展示
                                 stars = cell.get('星曜', [])
                                 if stars:
                                     m_stars = " ".join(stars[:2])
@@ -588,6 +594,8 @@ if submit:
                                 
                                 cols[i].write(f"{cell.get('宫干地支','')} {cell.get('大限','')}")
                                 cols[i].divider()
+        elif result is not None:
+            st.error(f"❌ 引擎运行成功但未生成有效数据: {str(result)}")
 
         if submit:
             # 1. 预先初始化所有可能用到的变量，防止 NameError
