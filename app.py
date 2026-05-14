@@ -522,38 +522,30 @@ if submit:
         try:
             ct = cnlunar.Lunar(dt, godType=0)
             
-            # --- 终极兼容性提取：自动探测 cnlunar 的属性 ---
-            # 方案 A: 尝试常见的字符串属性名
-            if hasattr(ct, 'year8char'):
-                y8, m8, d8, h8 = ct.year8char, ct.month8char, ct.day8char, ct.twohour8char
-            # 方案 B: 尝试大小写变体
-            elif hasattr(ct, 'year8Char'):
-                y8, m8, d8, h8 = ct.year8Char, ct.month8Char, ct.day8Char, ct.twohour8Char
-            # 方案 C: 尝试方法名
-            elif hasattr(ct, 'get_year8char'):
-                y8, m8, d8, h8 = ct.get_year8char(), ct.get_month8char(), ct.get_day8char(), ct.get_twohour8char()
-            else:
-                # 方案 D: 实在找不到，强行从 ct 字典里取值 (最后底牌)
-                st.warning("⚠️ 库版本异常，尝试强制提取数据...")
-                y8 = str(getattr(ct, 'year8char', '甲子'))
+            # --- 根据调试信息精准匹配属性名 (注意大写 C) ---
+            # 优先使用属性，因为你的调试信息显示这些属性是存在的
+            y8 = ct.year8Char
+            m8 = ct.month8Char
+            d8 = ct.day8Char
+            h8 = ct.twohour8Char
 
             # 2. 提取干支并调用引擎
-            # 确保 y8 是字符串且长度足够
+            # 确保提取的是年柱的干和支
             y_stem, y_branch = y8[0], y8[1]
             l_month = ct.lunarMonth
             l_day = ct.lunarDay
+            
+            # 时辰换算
             hour_idx = (dt.hour + 1) // 2 % 12
             h_zhi = DI_ZHI[hour_idx]
 
+            # 调用你的核心引擎
             result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
 
         except Exception as e:
             st.error(f"❌ 换算环节崩溃: {str(e)}")
-            # 调试信息：打印出 ct 对象所有可用的属性，帮你定位问题
-            if 'ct' in locals():
-                st.write("调试信息 (可用属性):", [attr for attr in dir(ct) if '8' in attr])
 
-        # 3. 渲染界面 (增加双重保险判断)
+        # 3. 渲染界面
         if result and isinstance(result, dict) and "命盘数据" in result:
             st.subheader(f"📊 {name} 的紫微命盘")
             st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
@@ -596,8 +588,6 @@ if submit:
                                 
                                 cols[i].write(f"{cell.get('宫干地支','')} {cell.get('大限','')}")
                                 cols[i].divider()
-        elif result is not None:
-            st.warning(f"⚠️ 结果格式异常: {str(result)}")
 
         if submit:
             # 1. 预先初始化所有可能用到的变量，防止 NameError
