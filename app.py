@@ -513,7 +513,7 @@ with st.sidebar:
     submit = st.button("开启天命盘", type="primary")
 
 if submit:
-        # 1. 彻底初始化所有可能用到的变量，防止任何情况下的 NameError
+        # 1. 预初始化所有变量，彻底杜绝 NameError
         result = None
         ct = None
         y8 = m8 = d8 = h8 = "未知"
@@ -522,51 +522,52 @@ if submit:
         dt = datetime.datetime.combine(birth_date, birth_time)
         
         try:
-            # 初始化 cnlunar
+            # 初始化库
             ct = cnlunar.Lunar(dt, godType=0)
             
-            # --- 核心修复：全自动探测属性名 (兼容所有大小写版本) ---
-            def get_any_attr(obj, name):
-                # 探测优先级：原始名称 -> 全小写 -> 首字母大写 -> 驼峰式
-                for variant in [name, name.lower(), name.capitalize(), name.replace('char', 'Char')]:
-                    val = getattr(obj, variant, None)
+            # --- 防火墙1：属性智能探测 ---
+            def safe_get_attr(obj, base_name):
+                # 按照常用版本优先级探测：驼峰式 -> 全小写 -> 显式方法
+                for attr in [base_name.replace('char', 'Char'), base_name.lower()]:
+                    val = getattr(obj, attr, None)
                     if val and isinstance(val, str) and len(val) >= 2:
                         return val
-                return "甲子" # 最终兜底
+                return None
 
-            y8 = get_any_attr(ct, 'year8char')
-            m8 = get_any_attr(ct, 'month8char')
-            d8 = get_any_attr(ct, 'day8char')
-            h8 = get_any_attr(ct, 'twohour8char')
+            y8 = safe_get_attr(ct, 'year8char')
+            m8 = safe_get_attr(ct, 'month8char')
+            d8 = safe_get_attr(ct, 'day8char')
+            h8 = safe_get_attr(ct, 'twohour8char')
 
-            # --- 关键防护：确保 y_stem 和 y_branch 合法 ---
+            # --- 防火墙2：参数合法性强校验 ---
+            if not y8 or y8 == "未知":
+                st.error("❌ 无法从 cnlunar 获取年干支，请检查库版本或日期输入。")
+                st.stop() # 强制停止，不进入后续逻辑
+
             y_stem, y_branch = y8[0], y8[1]
             
-            # 校验是否在预定义的干支列表中，防止 index out of range
+            # 检查提取的干支是否在定义的列表中，防止 index out of range
             if y_stem not in TIAN_GAN or y_branch not in DI_ZHI:
-                # 如果不在列表里，尝试强制纠正或报错
-                st.error(f"❌ 获取到的年干支 [{y8}] 不在标准范围内，请检查系统 TIAN_GAN/DI_ZHI 定义。")
+                st.error(f"❌ 解析到的年干支 [{y8}] 不在标准系统范围内。")
                 st.stop()
                 
             l_month = getattr(ct, 'lunarMonth', 1)
             l_day = getattr(ct, 'lunarDay', 1)
-            
-            # 时辰索引保护
             hour_idx = (dt.hour + 1) // 2 % 12
             h_zhi = DI_ZHI[hour_idx]
 
-            # 2. 调用引擎 (增加局部 try 防止算法内部报错穿透)
+            # 2. 调用引擎 (增加内部 try，定位具体是哪个算法模块崩溃)
             try:
                 result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
-            except Exception as e_inner:
-                st.error(f"❌ 算法引擎内部计算崩溃: {str(e_inner)}")
+            except Exception as e_alg:
+                st.error(f"❌ 算法引擎内部崩溃（通常是索引错误）: {str(e_alg)}")
                 result = None
 
-        except Exception as lunar_err:
-            st.error(f"❌ 农历换算环节崩溃: {str(lunar_err)}")
+        except Exception as e_lunar:
+            st.error(f"❌ 农历换算逻辑崩溃: {str(e_lunar)}")
 
-        # 3. 渲染界面 (使用严格的类型检查，彻底解决 result["命盘数据"] 的 TypeError)
-        # 只有 result 确定是一个字典，且包含关键 key 时才进入渲染逻辑
+        # --- 防火墙3：渲染安全隔离 ---
+        # 只有 result 是字典且包含关键 Key 时才运行，彻底解决 TypeError
         if isinstance(result, dict) and "命盘数据" in result:
             st.subheader(f"📊 {name} 的紫微命盘")
             st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
@@ -578,7 +579,7 @@ if submit:
             c3.metric("命主", result.get("命主", "N/A"))
             c4.metric("身主", result.get("身主", "N/A"))
 
-            # 4. 渲染 4x3 布局 (使用绝对安全的 get 访问)
+            # 渲染 4x3 布局
             chart_data = result.get("命盘数据", {})
             rows = [
                 ["巳", "午", "未", "申"],
@@ -587,9 +588,9 @@ if submit:
                 ["寅", "丑", "子", "亥"]
             ]
             
-            for r in rows:
+            for row in rows:
                 cols = st.columns(4)
-                for i, zhi in enumerate(r):
+                for i, zhi in enumerate(row):
                     if zhi == "中宫":
                         cols[i].empty()
                     else:
@@ -601,19 +602,18 @@ if submit:
                                 if "命宫" in cell.get('是否命身',''): t += " ✨"
                                 cols[i].markdown(t)
                                 
-                                # 星曜展示
+                                # 星曜列表
                                 stars = cell.get('星曜', [])
                                 if stars:
-                                    m_stars = " ".join(stars[:2])
-                                    s_stars = " ".join(stars[2:])
+                                    m_stars = " ".join(stars[:2]) # 主星
+                                    s_stars = " ".join(stars[2:]) # 辅星
                                     cols[i].markdown(f"<span style='color:red;font-weight:bold'>{m_stars}</span>", unsafe_allow_html=True)
                                     if s_stars: cols[i].caption(s_stars)
                                 
                                 cols[i].write(f"{cell.get('宫干地支','')} {cell.get('大限','')}")
                                 cols[i].divider()
         elif result is not None:
-            # 如果 result 有值但不是字典，说明 build_ziwei_chart 返回了错误字符串
-            st.warning(f"⚠️ 引擎返回非标准数据: {result}")
+            st.warning("⚠️ 引擎未返回符合预期的命盘字典数据。")
 
         if submit:
             # 1. 预先初始化所有可能用到的变量，防止 NameError
