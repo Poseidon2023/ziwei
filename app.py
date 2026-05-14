@@ -514,7 +514,6 @@ with st.sidebar:
 
 if submit:
       
-    if submit:
     # 1. 农历换算
     dt = datetime.datetime.combine(birth_date, birth_time)
     try:
