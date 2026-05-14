@@ -591,7 +591,21 @@ if submit:
 
     except Exception as e:
         st.error(f"排盘发生错误，请检查输入: {str(e)}")
-        st.info(f"**生辰八字：** {ct.year8char}年 {ct.month8char}月 {ct.day8char}日 {ct.twohour8char}时")
+        # --- 兼容性提取八字字符串 ---
+        try:
+            # 优先尝试函数获取（最稳定）
+            y8 = ct.get_year8char()
+            m8 = ct.get_month8char()
+            d8 = ct.get_day8char()
+            h8 = ct.get_twohour8char()
+        except AttributeError:
+            # 兜底：如果函数不存在，尝试直接读取属性
+            y8 = getattr(ct, 'year8char', '未知')
+            m8 = getattr(ct, 'month8char', '未知')
+            d8 = getattr(ct, 'day8char', '未知')
+            h8 = getattr(ct, 'twohour8char', '未知')
+
+        st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
 
         # --- 渲染 4x3 命盘 (这里使用 Streamlit Columns 模拟) ---
         # 第一排：巳 午 未 申
