@@ -544,15 +544,7 @@ if submit:
         result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
         
         # ... 后续渲染代码 (st.subheader 等) 保持不变 ...
-    l_month = ct.lunarMonth
-    l_day = ct.lunarDay
-    # 将时间换算为地支
-    hour_idx = (dt.hour + 1) // 2 % 12
-    h_zhi = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"][hour_idx]
-    
-    # 3. 调用你的核心引擎
-    result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
-    
+        
     if isinstance(result, str):
         st.error(result)
     else:
