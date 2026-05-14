@@ -513,12 +513,7 @@ with st.sidebar:
     submit = st.button("开启天命盘", type="primary")
 
 if submit:
-    # 1. 农历换算
-    #dt = datetime.datetime.combine(birth_date, birth_time)
-    #ct = cnlunar.Lunar(dt, godType=0)
-    
-    # 2. 提取参数
-    # 逻辑：cnlunar 的 year8char 返回的是 '庚午'，我们需要拆分
+      
     if submit:
     # 1. 农历换算
     dt = datetime.datetime.combine(birth_date, birth_time)
