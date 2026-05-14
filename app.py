@@ -499,82 +499,80 @@ def build_ziwei_chart(year_stem, year_branch, lunar_month, lunar_day, hour_zhi, 
 
 # --- Streamlit 界面逻辑 ---
 
-st.set_page_config(page_title="Hermes 紫微斗数排盘引擎", layout="wide")
+st.set_page_config(page_title="Hermes 紫微斗数排盘", layout="wide")
 
-# 自定义 CSS 让表格更像命盘
-st.markdown("""
-    <style>
-    .stTable { font-size: 14px !important; }
-    .palace-box { border: 1px solid #ddd; padding: 10px; min-height: 180px; background-color: #f9f9f9; border-radius: 5px; }
-    .main-star { color: #d32f2f; font-weight: bold; font-size: 18px; display: block; }
-    .sub-star { color: #555; font-size: 13px; }
-    .palace-name { color: #1976d2; font-weight: bold; font-size: 16px; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- 1. 输入区域：移出侧边栏，直接在主页面显示 (解决手机端缩进问题) ---
+st.header("🌙 紫微斗数命盘开启")
 
-with st.sidebar:
-    st.header("🌙 生辰输入")
+# 使用 columns 让输入框在 PC 端并排，手机端自动堆叠
+input_col1, input_col2 = st.columns(2)
+
+with input_col1:
     name = st.text_input("姓名", "命主")
-    gender = st.radio("性别", ["男", "女"])
-    birth_date = st.date_input("出生日期", datetime.date(1990, 6, 1))
-    birth_time = st.time_input("出生时间", datetime.time(12, 30))
+    gender = st.radio("性别", ["男", "女"], horizontal=True)
+
+with input_col2:
+    # 默认日期设为今天，方便测试
+    birth_date = st.date_input("出生日期", datetime.date(1995, 1, 1))
+    birth_time = st.time_input("出生时间", datetime.time(12, 0))
     is_leap = st.checkbox("是否闰月出生")
-    
-    submit = st.button("开启天命盘", type="primary")
+
+# 按钮占满一行，方便手机点击
+submit = st.button("开启天命盘", type="primary", use_container_width=True)
 
 if submit:
-    # 1. 彻底初始化，防止穿透
     result = None
     y8 = m8 = d8 = h8 = "未知"
     
     dt = datetime.datetime.combine(birth_date, birth_time)
         
     try:
+        # 初始化农历
         ct = cnlunar.Lunar(dt, godType=0)
         
-        # --- 智能获取属性 ---
-        def get_safe_attr(obj, name):
+        # 智能获取八字属性 (解决大小写兼容性)
+        def get_attr_safe(obj, name):
             for n in [name.replace('char', 'Char'), name.lower()]:
                 val = getattr(obj, n, None)
                 if val and isinstance(val, str): return val
-            return "甲子"
+            return "未知"
 
-        y8 = get_safe_attr(ct, 'year8char')
-        m8 = get_safe_attr(ct, 'month8char')
-        d8 = get_safe_attr(ct, 'day8char')
-        h8 = get_safe_attr(ct, 'twohour8char')
+        y8 = get_attr_safe(ct, 'year8char')
+        m8 = get_attr_safe(ct, 'month8char')
+        d8 = get_attr_safe(ct, 'day8char')
+        h8 = get_attr_safe(ct, 'twohour8char')
 
-        # --- 核心修复：索引合法性预检 ---
-        # 确保 y8 至少有 2 个字符且在我们的干支列表内
-        if len(y8) >= 2 and y8[0] in TIAN_GAN and y8[1] in DI_ZHI:
-            y_stem, y_branch = y8[0], y8[1]
-        else:
-            y_stem, y_branch = TIAN_GAN[0], DI_ZHI[10] # 默认甲子(子在DI_ZHI索引为10)
-
+        # 准备算法参数
+        y_stem, y_branch = y8[0], y8[1]
         l_month = getattr(ct, 'lunarMonth', 1)
         l_day = getattr(ct, 'lunarDay', 1)
         
-        # --- 时辰换算修正：必须子时起算 ---
-        # 不要用全局 DI_ZHI，因为它是寅起的，这里定义一个子起的临时表
-        ZHI_STANDARD = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
+        # 时辰转换 (使用子起的 ZHI_HOUR)
         hour_idx = (dt.hour + 1) // 2 % 12
-        h_zhi = ZHI_STANDARD[hour_idx]
+        h_zhi = ZHI_HOUR[hour_idx]
 
-        # 2. 调用引擎
-        try:
-            result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
-        except Exception as e_alg:
-            st.error(f"❌ 算法内部越界，请检查模块索引: {str(e_alg)}")
-            result = None
+        # 2. 调用核心引擎
+        result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
 
-    except Exception as e_lunar:
-        st.error(f"❌ 农历库换算失败: {str(e_lunar)}")
+    except Exception as e:
+        st.error(f"❌ 排盘计算出错: {str(e)}")
 
-    # --- 3. 渲染隔离层 ---
+    # --- 3. 渲染界面 (解决八字显示与 12 宫布局) ---
     if isinstance(result, dict) and "命盘数据" in result:
-        st.subheader(f"📊 {name} 的紫微命盘")
+        st.divider()
         
-        # 1. 定义 4x3 矩阵坐标
+        # 改进 1：显眼展示生辰八字
+        st.success(f"🎊 {name} 的乾坤定数已开启")
+        bazi_cols = st.columns(4)
+        bazi_cols[0].metric("年柱", y8)
+        bazi_cols[1].metric("月柱", m8)
+        bazi_cols[2].metric("日柱", d8)
+        bazi_cols[3].metric("时柱", h8)
+        
+        # 渲染命盘方阵
+        chart_data = result["命盘数据"]
+        
+        # 定义 4x3 宫位坐标 (顺时针绕圈)
         matrix = [
             ["巳", "午", "未", "申"],
             ["辰", "中宫1", "中宫2", "酉"],
@@ -582,33 +580,36 @@ if submit:
             ["寅", "丑", "子", "亥"]
         ]
         
-        chart_data = result["命盘数据"]
-
-        # 2. 循环生成 12 宫方阵
         for row_zhi in matrix:
             cols = st.columns(4)
             for i, zhi in enumerate(row_zhi):
                 with cols[i]:
                     if "中宫" in zhi:
-                        # 在中宫位置显示核心元数据
-                        if zhi == "中宫1": st.metric("五行局", result.get("五行局"))
-                        if zhi == "中宫2": st.metric("阴阳", result.get("阴阳性别"))
-                        if zhi == "中宫3": st.metric("命主", result.get("命主"))
-                        if zhi == "中宫4": st.metric("身主", result.get("身主"))
+                        # 在中宫区域填充核心信息
+                        if zhi == "中宫1": st.write(f"**局数**：{result.get('五行局')}")
+                        if zhi == "中宫2": st.write(f"**性别**：{result.get('阴阳性别')}")
+                        if zhi == "中宫3": st.write(f"**命主**：{result.get('命主')}")
+                        if zhi == "中宫4": st.write(f"**身主**：{result.get('身主')}")
                     else:
                         cell = chart_data.get(zhi)
                         if cell:
-                            # 使用 Markdown 手写 CSS 边框
+                            # 宫位卡片化渲染
+                            is_main = "✨" if "命宫" in cell['是否命身'] else ""
+                            stars = cell.get('星曜', [])
+                            main_s = " ".join(stars[:2]) # 主星
+                            sub_s = " ".join(stars[2:6]) # 辅星
+                            
                             st.markdown(f"""
-                            <div style="border:1px solid #4A4A4A; padding:10px; border-radius:5px; min-height:150px;">
-                                <div style="color:#1E88E5; font-weight:bold;">{cell['宫位名称']}</div>
-                                <div style="color:#D32F2F; font-size:1.1em;">{" ".join(cell['星曜'][:2])}</div>
-                                <div style="color:#666; font-size:0.8em;">{" ".join(cell['星曜'][2:6])}</div>
-                                <div style="margin-top:10px; font-size:0.8em; color:#999;">
+                            <div style="border:1.5px solid #4A4A4A; padding:8px; border-radius:5px; min-height:160px; background-color:#FAFAFA; margin-bottom:10px;">
+                                <div style="color:#1E88E5; font-weight:bold; border-bottom:1px solid #EEE;">{cell['宫位名称']} {is_main}</div>
+                                <div style="color:#D32F2F; font-weight:bold; font-size:1.1em; margin:5px 0;">{main_s}</div>
+                                <div style="color:#555; font-size:0.8em; min-height:40px;">{sub_s}</div>
+                                <div style="font-size:0.75em; color:#888; margin-top:10px; border-top:1px dashed #DDD;">
                                     {cell['宫干地支']} | {cell['大限']}
                                 </div>
+                                <div style="text-align:right; font-weight:bold; color:#EEE; font-size:1.2em; margin-top:-20px;">{zhi}</div>
                             </div>
                             """, unsafe_allow_html=True)
 
 st.divider()
-st.caption("💡 提示：本排盘系统由 Hermes Poseidon 驱动，已对齐专业版排盘逻辑。")
+st.caption("提示：在手机端建议横屏查看以获得最佳 12 宫视觉效果。")
