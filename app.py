@@ -558,20 +558,11 @@ if submit:
         st.error(f"❌ 排盘计算出错: {str(e)}")
 
     # --- 3. 渲染界面 (解决八字显示与 12 宫布局) ---
+    # --- 3. 渲染界面 (中宫八字 + 模拟图片化排盘) ---
     if isinstance(result, dict) and "命盘数据" in result:
         st.divider()
-        
-        # 改进 1：显眼展示生辰八字
         st.success(f"🎊 {name} 的乾坤定数已开启")
-        bazi_cols = st.columns(4)
-        bazi_cols[0].metric("年柱", y8)
-        bazi_cols[1].metric("月柱", m8)
-        bazi_cols[2].metric("日柱", d8)
-        bazi_cols[3].metric("时柱", h8)
-        
-        # 渲染命盘方阵
-        chart_data = result["命盘数据"]
-        
+
         # 定义 4x3 宫位坐标 (顺时针绕圈)
         matrix = [
             ["巳", "午", "未", "申"],
@@ -580,36 +571,80 @@ if submit:
             ["寅", "丑", "子", "亥"]
         ]
         
-        for row_zhi in matrix:
-            cols = st.columns(4)
-            for i, zhi in enumerate(row_zhi):
-                with cols[i]:
-                    if "中宫" in zhi:
-                        # 在中宫区域填充核心信息
-                        if zhi == "中宫1": st.write(f"**局数**：{result.get('五行局')}")
-                        if zhi == "中宫2": st.write(f"**性别**：{result.get('阴阳性别')}")
-                        if zhi == "中宫3": st.write(f"**命主**：{result.get('命主')}")
-                        if zhi == "中宫4": st.write(f"**身主**：{result.get('身主')}")
-                    else:
-                        cell = chart_data.get(zhi)
-                        if cell:
-                            # 宫位卡片化渲染
-                            is_main = "✨" if "命宫" in cell['是否命身'] else ""
-                            stars = cell.get('星曜', [])
-                            main_s = " ".join(stars[:2]) # 主星
-                            sub_s = " ".join(stars[2:6]) # 辅星
-                            
-                            st.markdown(f"""
-                            <div style="border:1.5px solid #4A4A4A; padding:8px; border-radius:5px; min-height:160px; background-color:#FAFAFA; margin-bottom:10px;">
-                                <div style="color:#1E88E5; font-weight:bold; border-bottom:1px solid #EEE;">{cell['宫位名称']} {is_main}</div>
-                                <div style="color:#D32F2F; font-weight:bold; font-size:1.1em; margin:5px 0;">{main_s}</div>
-                                <div style="color:#555; font-size:0.8em; min-height:40px;">{sub_s}</div>
-                                <div style="font-size:0.75em; color:#888; margin-top:10px; border-top:1px dashed #DDD;">
-                                    {cell['宫干地支']} | {cell['大限']}
-                                </div>
-                                <div style="text-align:right; font-weight:bold; color:#EEE; font-size:1.2em; margin-top:-20px;">{zhi}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+        chart_data = result["命盘数据"]
 
+        # 使用容器包裹，CSS 设定最大宽度适配手机
+        st.markdown("""
+            <style>
+                .tian-pan { 
+                    max-width: 1000px; 
+                    margin: auto; 
+                    background-color: #f4f4f4; 
+                    padding: 5px; 
+                    border-radius: 10px;
+                }
+                .palace-card {
+                    border: 1.5px solid #333;
+                    padding: 5px;
+                    border-radius: 4px;
+                    background-color: #fff;
+                    min-height: 140px;
+                    margin-bottom: 5px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                }
+                .center-info {
+                    background-color: #fffde7;
+                    border: 1px solid #ffd54f;
+                    padding: 10px;
+                    height: 100%;
+                    border-radius: 4px;
+                    text-align: center;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
+        with st.container():
+            for row_zhi in matrix:
+                cols = st.columns(4)
+                for i, zhi in enumerate(row_zhi):
+                    with cols[i]:
+                        if "中宫" in zhi:
+                            # 改进 1：将生辰八字分布在中宫的四个格子里
+                            if zhi == "中宫1":
+                                st.markdown(f'<div class="center-info"><b>年柱</b><br><span style="color:#d32f2f;font-size:1.2em;">{y8}</span></div>', unsafe_allow_html=True)
+                            if zhi == "中宫2":
+                                st.markdown(f'<div class="center-info"><b>月柱</b><br><span style="color:#d32f2f;font-size:1.2em;">{m8}</span></div>', unsafe_allow_html=True)
+                            if zhi == "中宫3":
+                                st.markdown(f'<div class="center-info"><b>日柱</b><br><span style="color:#d32f2f;font-size:1.2em;">{d8}</span></div>', unsafe_allow_html=True)
+                            if zhi == "中宫4":
+                                # 中宫4放置 时柱 + 五行局
+                                st.markdown(f'<div class="center-info"><b>时柱</b><br><span style="color:#d32f2f;font-size:1.2em;">{h8}</span><br><small>{result.get("五行局")}</small></div>', unsafe_allow_html=True)
+                        else:
+                            cell = chart_data.get(zhi)
+                            if cell:
+                                # 改进 2：模拟图片化卡片渲染
+                                is_main = "★" if "命宫" in cell['是否命身'] else ""
+                                stars = cell.get('星曜', [])
+                                main_s = " ".join(stars[:2]) # 主星
+                                sub_s = " ".join(stars[2:6]) # 辅星
+                                
+                                st.markdown(f"""
+                                <div class="palace-card">
+                                    <div style="font-size:0.85em; color:#1e88e5; border-bottom:1px solid #eee;">
+                                        <b>{cell['宫位名称']}</b> {is_main}
+                                    </div>
+                                    <div style="color:#c62828; font-weight:bold; font-size:1.1em; padding:4px 0;">
+                                        {main_s}
+                                    </div>
+                                    <div style="color:#444; font-size:0.75em; line-height:1.1;">
+                                        {sub_s}
+                                    </div>
+                                    <div style="font-size:0.7em; color:#999; text-align:right;">
+                                        {cell['宫干地支']}<br>{cell['大限']}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 st.divider()
 st.caption("提示：在手机端建议横屏查看以获得最佳 12 宫视觉效果。")
