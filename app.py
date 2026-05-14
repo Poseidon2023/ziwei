@@ -513,58 +513,58 @@ with st.sidebar:
     submit = st.button("开启天命盘", type="primary")
 
 if submit:
-        # 1. 农历换算
+        # 1. 预声明变量，防止 NameError
+        result = None
+        ct = None
+        
+        # 2. 农历换算
         dt = datetime.datetime.combine(birth_date, birth_time)
         
         try:
+            # 这里的逻辑必须严谨，任何一步报错都要被捕获
             ct = cnlunar.Lunar(dt, godType=0)
             
-            # 兼容性提取年干支
+            # 兼容性获取年干支
             if hasattr(ct, 'year8char'):
                 y_8char = ct.year8char
             elif hasattr(ct, 'get_year8char'):
                 y_8char = ct.get_year8char()
             else:
-                y_8char = ct.year8Char 
+                y_8char = ct.year8Char
                 
             y_stem, y_branch = y_8char[0], y_8char[1]
             l_month = ct.lunarMonth
             l_day = ct.lunarDay
             
-            # 2. 时辰换算
+            # 时辰换算
             hour_idx = (dt.hour + 1) // 2 % 12
             h_zhi = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"][hour_idx]
             
             # 3. 调用核心引擎
             result = build_ziwei_chart(y_stem, y_branch, l_month, l_day, h_zhi, gender, is_leap)
-            
-            # --- 关键修复：增加 result 是否存在的判定 ---
-            if result is None:
-                st.error("❌ 引擎计算结果为空，请检查后台算法逻辑。")
-            elif isinstance(result, str):
-                st.error(f"❌ 引擎返回错误: {result}")
+
+        except Exception as e:
+            st.error(f"❌ 农历换算或引擎初始化失败: {str(e)}")
+
+        # 4. 渲染界面：只有当 result 成功生成且不是字符串错误时才继续
+        if result is not None:
+            if isinstance(result, str):
+                st.error(f"❌ 引擎逻辑错误: {result}")
             else:
-                # 4. 开始渲染界面
                 st.subheader(f"📊 {name} 的紫微命盘")
                 
-                # 提取八字字符串展示
-                try:
-                    y8, m8, d8, h8 = ct.get_year8char(), ct.get_month8char(), ct.get_day8char(), ct.get_twohour8char()
-                except:
-                    y8 = getattr(ct, 'year8char', '')
-                    m8 = getattr(ct, 'month8char', '')
-                    d8 = getattr(ct, 'day8char', '')
-                    h8 = getattr(ct, 'twohour8char', '')
-                st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
+                # 安全提取八字用于展示
+                y8 = getattr(ct, 'year8char', '未知') if ct else '未知'
+                st.info(f"**生辰八字：** {y8} (其余参数请检查输入)")
 
                 # 渲染中宫
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("五行局", result.get("五行局", "未知"))
-                c2.metric("阴阳性别", result.get("阴阳性别", "未知"))
-                c3.metric("命主", result.get("命主", "未知"))
-                c4.metric("身主", result.get("身主", "未知"))
+                c1.metric("五行局", result.get("五行局", "N/A"))
+                c2.metric("阴阳性别", result.get("阴阳性别", "N/A"))
+                c3.metric("命主", result.get("命主", "N/A"))
+                c4.metric("身主", result.get("身主", "N/A"))
 
-                # 5. 渲染 4x3 命盘
+                # 5. 渲染 4x3 命盘布局
                 rows = [
                     ["巳", "午", "未", "申"],
                     ["辰", "中宫", "中宫", "酉"],
@@ -572,7 +572,7 @@ if submit:
                     ["寅", "丑", "子", "亥"]
                 ]
                 
-                # 再次确保数据字典存在
+                # 使用 .get() 绝对安全地访问字典
                 chart_data = result.get("命盘数据", {})
                 
                 for r in rows:
@@ -584,11 +584,12 @@ if submit:
                             cell = chart_data.get(zhi)
                             if cell:
                                 with cols[i].container():
+                                    # 宫位标题
                                     t = f"**{cell['宫位名称']}**"
                                     if "命宫" in cell['是否命身']: t += " ✨"
-                                    if "身宫" in cell['是否命身']: t += " 👤"
                                     cols[i].markdown(t)
                                     
+                                    # 星曜渲染
                                     stars = cell.get('星曜', [])
                                     if stars:
                                         m_stars = " ".join(stars[:2])
@@ -599,11 +600,6 @@ if submit:
                                     
                                     cols[i].write(f"{cell['宫干地支']} {cell['大限']}")
                                     cols[i].divider()
-                            else:
-                                cols[i].write(f"数据缺失: {zhi}")
-
-        except Exception as e:
-            st.error(f"💥 运行崩溃: {str(e)}")
         # --- 兼容性提取八字字符串 ---
         try:
             # 优先尝试函数获取（最稳定）
