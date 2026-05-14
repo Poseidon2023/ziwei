@@ -34,7 +34,7 @@ def get_all_palace_stems(year_stem_str):
     palace_stems = []
     
     for d in range(12): # d 为地支偏移量
-        t_target_idx = (t_yin_idx + d - 1) % 10 + 1
+        t_target_idx = (t_yin_idx + d) % 10
         palace_stems.append(TIAN_GAN[t_target_idx])
         
     return palace_stems
