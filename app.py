@@ -545,18 +545,19 @@ if submit:
         
         # ... 后续渲染代码 (st.subheader 等) 保持不变 ...
         
-    if isinstance(result, str):
-        st.error(result)
-    else:
-        # --- 渲染中宫档案 ---
-        st.subheader(f"📊 {name} 的紫微命盘")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("五行局", result["五行局"])
-        col2.metric("阴阳性别", result["阴阳性别"])
-        col3.metric("命主", result["命主"])
-        col4.metric("身主", result["身主"])
-        
+        if isinstance(result, str):
+            st.error(result)
+        else:
+            # --- 渲染中宫档案 ---
+            st.subheader(f"📊 {name} 的紫微命盘")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("五行局", result["五行局"])
+            col2.metric("阴阳性别", result["阴阳性别"])
+            col3.metric("命主", result["命主"])
+            col4.metric("身主", result["身主"])
+        except Exception as e:  # <--- 必须有这一行，且与 try 垂直对齐
+            st.error(f"排盘发生错误: {str(e)}")
         st.info(f"**生辰八字：** {ct.year8char}年 {ct.month8char}月 {ct.day8char}日 {ct.twohour8char}时")
 
         # --- 渲染 4x3 命盘 (这里使用 Streamlit Columns 模拟) ---
