@@ -572,44 +572,79 @@ if submit:
 
     # --- 3. 渲染隔离层 ---
     if isinstance(result, dict) and "命盘数据" in result:
+        # --- 3. 渲染隔离层 ---
+    if isinstance(result, dict) and "命盘数据" in result:
         st.subheader(f"📊 {name} 的紫微命盘")
+        
+        # 顶部基础信息栏
         st.info(f"**生辰八字：** {y8}年 {m8}月 {d8}日 {h8}时")
         
-        # 渲染中宫
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("五行局", result.get("五行局", "N/A"))
-        c2.metric("阴阳性别", result.get("阴阳性别", "N/A"))
-        c3.metric("命主", result.get("命主", "N/A"))
-        c4.metric("身主", result.get("身主", "N/A"))
+        # 渲染中宫关键数据（放在命盘上方作为概览，或者你可以移入命盘中心）
+        base_cols = st.columns(4)
+        base_cols.metric("五行局", result.get("五行局", "N/A"))
+        base_cols.metric("阴阳性别", result.get("阴阳性别", "N/A"))
+        base_cols.metric("命主", result.get("命主", "N/A"))
+        base_cols.metric("身主", result.get("身主", "N/A"))
 
-        # 渲染 4x3 布局
-        chart_data = result["命盘数据"]
-        # 注意这里是地支排布，由于你的 DI_ZHI 是寅起，我们需要确保对应关系
-        rows = [
+        # --- 核心：12宫方阵布局 ---
+        # 定义 4x3 的地支坐标矩阵
+        matrix = [
             ["巳", "午", "未", "申"],
-            ["辰", "中宫", "中宫", "酉"],
-            ["卯", "中宫", "中宫", "戌"],
+            ["辰", "中宫1", "中宫2", "酉"],
+            ["卯", "中宫3", "中宫4", "戌"],
             ["寅", "丑", "子", "亥"]
         ]
         
-        for r_zhi in rows:
-            cols = st.columns(4)
-            for i, zhi in enumerate(r_zhi):
-                if zhi == "中宫":
-                    cols[i].empty()
-                else:
-                    cell = chart_data.get(zhi)
-                    if cell:
-                        with cols[i].container():
-                            st.markdown(f"**{cell['宫位名称']}**")
-                            stars = cell.get('星曜', [])
-                            if stars:
-                                m_stars = " ".join(stars[:2])
-                                cols[i].markdown(f"<span style='color:red'>{m_stars}</span>", unsafe_allow_html=True)
-                                if len(stars) > 2:
-                                    cols[i].caption(" ".join(stars[2:]))
-                            cols[i].write(f"{cell['宫干地支']} | {cell['大限']}")
-                            cols[i].divider()
+        chart_data = result["命盘数据"]
+
+        # 创建一个大的容器来包裹命盘
+        with st.container():
+            for row_zhi in matrix:
+                cols = st.columns(4)
+                for i, zhi in enumerate(row_zhi):
+                    with cols[i]:
+                        if "中宫" in zhi:
+                            # 如果是中宫区域，可以留空或者放些装饰
+                            st.write("") 
+                        else:
+                            cell = chart_data.get(zhi)
+                            if cell:
+                                # 使用 markdown 结合内部 CSS 锁死宫位样式
+                                is_important = "✨" if "命宫" in cell['是否命身'] else ""
+                                is_body = "👤" if "身宫" in cell['是否命身'] else ""
+                                
+                                # 星曜拆分：主星（红）、辅星（灰）
+                                stars = cell.get('星曜', [])
+                                main_stars = " ".join([s for s in stars[:2]])
+                                sub_stars = " ".join([s for s in stars[2:6]])
+                                
+                                st.markdown(f"""
+                                <div style="
+                                    border: 2px solid #4A4A4A;
+                                    padding: 8px;
+                                    border-radius: 5px;
+                                    background-color: #FFFFFF;
+                                    min-height: 180px;
+                                    margin-bottom: 10px;
+                                    line-height: 1.2;
+                                ">
+                                    <div style="color: #1E88E5; font-weight: bold; border-bottom: 1px solid #EEE;">
+                                        {cell['宫位名称']} {is_important}{is_body}
+                                    </div>
+                                    <div style="color: #D32F2F; font-weight: bold; font-size: 1.1em; margin-top: 5px;">
+                                        {main_stars}
+                                    </div>
+                                    <div style="color: #555; font-size: 0.85em; min-height: 40px;">
+                                        {sub_stars}
+                                    </div>
+                                    <div style="font-size: 0.8em; color: #888; margin-top: 10px;">
+                                        {cell['宫干地支']} | {cell['大限']}
+                                    </div>
+                                    <div style="text-align: right; font-weight: bold; color: #CCC; font-size: 1.2em;">
+                                        {zhi}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
 st.divider()
 st.caption("💡 提示：本排盘系统由 Hermes Poseidon 驱动，已对齐专业版排盘逻辑。")
